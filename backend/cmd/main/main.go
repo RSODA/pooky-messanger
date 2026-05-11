@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"log"
+	"pooky-messanger/internal/auth"
 	"pooky-messanger/pkg/config"
+	"pooky-messanger/pkg/jwt"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -54,7 +56,7 @@ func main() {
 	}
 
 	m, err := migrate.NewWithDatabaseInstance(
-		"file://migrations", // ← префикс file:// обязателен
+		"file://migrations",
 		"postgres",
 		driver,
 	)
@@ -67,9 +69,22 @@ func main() {
 		log.Fatal(err)
 	}
 
-	err = r.Run(httpCfg.Address())
+	tokenCfg, err := config.NewTokenService()
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	repoAuth := auth.NewAuthRepository(db)
+	tokenAuth := jwt.NewGetTokenRequest(tokenCfg.GetSecret(), tokenCfg.GetDuration())
+	serviceAuth := auth.NewAuthService(repoAuth, tokenAuth)
+	handlerAuth := auth.NewAuthHandler(serviceAuth)
+
+	v1auth := r.Group("/api/v1/auth")
+	v1auth.POST("/login", handlerAuth.Login)
+	v1auth.POST("/register", handlerAuth.Register)
+
+	err = r.Run(httpCfg.Address())
+	if err != nil {
+		log.Fatal(err)
+	}
 }
