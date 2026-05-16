@@ -4,6 +4,7 @@ import "time"
 
 type JWTService interface {
 	GetToken(id string) (*string, error)
+	ValidateToken(tokenString string) (string, error)
 }
 
 type jwtService struct {

@@ -9,7 +9,7 @@ import (
 
 type AuthService interface {
 	Login(ctx context.Context, req *LoginRequest) (*AuthResponse, error)
-	Register(ctx context.Context, req *RegisterRequest) (string, error)
+	Register(ctx context.Context, req *RegisterRequest) (*AuthResponse, error)
 }
 
 type authService struct {
@@ -24,9 +24,11 @@ func NewAuthService(r AuthRepository, t jwt.JWTService) AuthService {
 	}
 }
 
-func (s *authService) Register(ctx context.Context, req *RegisterRequest) (string, error) {
+func (s *authService) Register(ctx context.Context, req *RegisterRequest) (*AuthResponse, error) {
+	var res AuthResponse
+
 	if len(req.Username) < 4 || len(req.Password) < 8 || len(req.FirstName) < 2 {
-		return "", ErrInvalidParams
+		return nil, ErrInvalidParams
 	}
 
 	hashPassword, err := bcrypt.GenerateFromPassword(
@@ -34,7 +36,7 @@ func (s *authService) Register(ctx context.Context, req *RegisterRequest) (strin
 		bcrypt.DefaultCost,
 	)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	user := &RegisterRequest{
@@ -43,12 +45,19 @@ func (s *authService) Register(ctx context.Context, req *RegisterRequest) (strin
 		FirstName: req.FirstName,
 	}
 
-	res, err := s.r.Register(ctx, user)
+	id, err := s.r.Register(ctx, user)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return res.String(), nil
+	token, err := s.t.GetToken(id.String())
+	if err != nil {
+		return nil, err
+	}
+
+	res.Token = *token
+
+	return &res, nil
 }
 
 func (s *authService) Login(ctx context.Context, req *LoginRequest) (*AuthResponse, error) {
